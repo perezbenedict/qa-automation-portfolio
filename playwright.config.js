@@ -24,15 +24,18 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Keep CI parallelism bounded while allowing all browser projects to run. */
+  workers: process.env.CI ? 2 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  reporter: [
+    ['list'],
+    ['html', { open: 'never' }],
+  ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     baseURL: 'https://playwright.dev',
     screenshot: 'only-on-failure',
-    trace: 'retain-on-failure',
+    trace: 'on-first-retry',
     video: 'retain-on-failure',
   },
 
@@ -81,4 +84,3 @@ export default defineConfig({
   //   reuseExistingServer: !process.env.CI,
   // },
 });
-
