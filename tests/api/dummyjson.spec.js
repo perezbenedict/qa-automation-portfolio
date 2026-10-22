@@ -31,6 +31,84 @@ test.describe('DummyJSON products API', () => {
     });
   });
 
+  test('returns distinct product pages and echoes pagination parameters', async ({ request }) => {
+    const pageSize = 3;
+    const firstResponse = await request.get(`${API_URL}/products?limit=${pageSize}&skip=0`);
+
+    expect(firstResponse.status()).toBe(200);
+    const firstPage = await firstResponse.json();
+    expect(firstPage).toEqual(expect.objectContaining({
+      limit: pageSize,
+      skip: 0,
+      total: expect.any(Number),
+      products: expect.any(Array),
+    }));
+    expect(firstPage.products.length).toBeGreaterThan(0);
+
+    if (firstPage.total > firstPage.products.length) {
+      const nextSkip = firstPage.products.length;
+      const nextResponse = await request.get(
+        `${API_URL}/products?limit=${pageSize}&skip=${nextSkip}`,
+      );
+
+      expect(nextResponse.status()).toBe(200);
+      const nextPage = await nextResponse.json();
+      expect(nextPage).toEqual(expect.objectContaining({
+        limit: pageSize,
+        skip: nextSkip,
+        total: firstPage.total,
+        products: expect.any(Array),
+      }));
+      expect(nextPage.products.length).toBeGreaterThan(0);
+      expect(nextPage.products.map((product) => product.id))
+        .not.toEqual(firstPage.products.map((product) => product.id));
+    }
+  });
+
+  test('sorts products by title in the requested order', async ({ request }) => {
+    const response = await request.get(
+      `${API_URL}/products?sortBy=title&order=asc&limit=10`,
+    );
+
+    expect(response.status()).toBe(200);
+    const payload = await response.json();
+    expect(payload).toEqual(expect.objectContaining({
+      limit: 10,
+      skip: 0,
+      products: expect.any(Array),
+    }));
+    expect(payload.products.length).toBeGreaterThan(0);
+
+    const titles = payload.products.map((product) => product.title.toLowerCase());
+    expect(titles).toEqual([...titles].sort((left, right) => left.localeCompare(right)));
+  });
+
+  test('lists product categories and filters products by a returned category', async ({ request }) => {
+    const categoriesResponse = await request.get(`${API_URL}/products/category-list`);
+
+    expect(categoriesResponse.status()).toBe(200);
+    const categories = await categoriesResponse.json();
+    expect(categories).toEqual(expect.arrayContaining([expect.any(String)]));
+
+    const category = categories[0];
+    const productsResponse = await request.get(
+      `${API_URL}/products/category/${encodeURIComponent(category)}?limit=5`,
+    );
+
+    expect(productsResponse.status()).toBe(200);
+    const payload = await productsResponse.json();
+    expect(payload).toEqual(expect.objectContaining({
+      products: expect.any(Array),
+      total: expect.any(Number),
+      skip: expect.any(Number),
+      limit: 5,
+    }));
+    expect(payload.products.length).toBeGreaterThan(0);
+    for (const product of payload.products) {
+      expect(product.category).toBe(category);
+    }
+  });
+
   test('returns a product by ID with its detail fields', async ({ request }) => {
     const response = await request.get(`${API_URL}/products/1`);
 
@@ -129,6 +207,68 @@ test.describe('DummyJSON users API', () => {
       lastName: expect.any(String),
       email: expect.stringMatching(/^[^@\s]+@[^@\s]+\.[^@\s]+$/),
     }));
+  });
+
+  test('returns distinct user pages and echoes pagination parameters', async ({ request }) => {
+    const pageSize = 3;
+    const firstResponse = await request.get(`${API_URL}/users?limit=${pageSize}&skip=0`);
+
+    expect(firstResponse.status()).toBe(200);
+    const firstPage = await firstResponse.json();
+    expect(firstPage).toEqual(expect.objectContaining({
+      limit: pageSize,
+      skip: 0,
+      total: expect.any(Number),
+      users: expect.any(Array),
+    }));
+    expect(firstPage.users.length).toBeGreaterThan(0);
+
+    if (firstPage.total > firstPage.users.length) {
+      const nextSkip = firstPage.users.length;
+      const nextResponse = await request.get(
+        `${API_URL}/users?limit=${pageSize}&skip=${nextSkip}`,
+      );
+
+      expect(nextResponse.status()).toBe(200);
+      const nextPage = await nextResponse.json();
+      expect(nextPage).toEqual(expect.objectContaining({
+        limit: pageSize,
+        skip: nextSkip,
+        total: firstPage.total,
+        users: expect.any(Array),
+      }));
+      expect(nextPage.users.length).toBeGreaterThan(0);
+      expect(nextPage.users.map((user) => user.id))
+        .not.toEqual(firstPage.users.map((user) => user.id));
+    }
+  });
+
+  test('searches users using a name obtained from the user collection', async ({ request }) => {
+    const collectionResponse = await request.get(`${API_URL}/users?limit=1`);
+
+    expect(collectionResponse.status()).toBe(200);
+    const collection = await collectionResponse.json();
+    expect(collection.users).toEqual(expect.arrayContaining([
+      expect.objectContaining({ firstName: expect.any(String) }),
+    ]));
+    const query = collection.users[0].firstName;
+
+    const response = await request.get(
+      `${API_URL}/users/search?q=${encodeURIComponent(query)}`,
+    );
+
+    expect(response.status()).toBe(200);
+    const result = await response.json();
+    expect(result).toEqual(expect.objectContaining({
+      users: expect.any(Array),
+      total: expect.any(Number),
+      skip: expect.any(Number),
+      limit: expect.any(Number),
+    }));
+    expect(result.users.length).toBeGreaterThan(0);
+    expect(result.users.some((user) => (
+      `${user.firstName} ${user.lastName}`.toLowerCase().includes(query.toLowerCase())
+    ))).toBe(true);
   });
 
   test('returns a not-found response for an unknown user ID', async ({ request }) => {

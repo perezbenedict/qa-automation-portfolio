@@ -10,9 +10,11 @@ A Playwright Test portfolio covering a public demo storefront, a public demo RES
 | `tests/ui/catalog.spec.js` | SauceDemo | Product name sorting in both directions; price sorting in both directions; opening product details and returning to the catalog. |
 | `tests/ui/cart.spec.js` | SauceDemo | Empty cart; add/remove item and badge behavior; cart contents retained while navigating back to the catalog. |
 | `tests/ui/checkout.spec.js` | SauceDemo | Checkout completion; required first name, last name, and postal code validation. |
+| `tests/ui/order-lifecycle.spec.js` | SauceDemo | Remove and re-add products; cancel checkout/review; order completion and cart reset; logout and protected-route behavior. |
 | `tests/ui/helpers.js` | SauceDemo | Shared helpers/constants for demo login, adding the first catalog item, and opening the cart. |
-| `tests/api/dummyjson.spec.js` | DummyJSON (`https://dummyjson.com`) | Product collection pagination and fields; product search/detail and unknown product; simulated product create/update/delete responses; user detail and unknown user. |
+| `tests/api/dummyjson.spec.js` | DummyJSON (`https://dummyjson.com`) | Product and user detail/search; pagination and sorting; product category discovery/filtering; unknown records; simulated product create/update/delete responses; response fields and status codes. |
 | `tests/quality/docs-quality.spec.js` | Playwright docs (`playwright.dev`) | Installation-page landmarks and heading structure; keyboard link activation and browser history; content bounds at a narrow viewport. |
+| `tests/quality/storefront-quality.spec.js` | SauceDemo | Keyboard login and cart operation; mobile login/catalog visibility and horizontal-overflow check; accessible prompts and named submit control. These checks are focused examples, not a WCAG conformance audit. |
 | `tests/example.spec.js` | Playwright docs (`playwright.dev`) | Homepage and navigation smoke checks; installation instructions; navigation to the writing-tests guide. |
 
 The UI helpers are limited to repeated SauceDemo interactions; the API tests use Playwright’s request fixture directly. Documentation tests use relative URLs against the configured `baseURL`. The SauceDemo helper navigates to an absolute URL, and DummyJSON requests use absolute URLs in the spec. The single configured `baseURL` is `https://playwright.dev`; it does not switch by suite or configure SauceDemo/DummyJSON targets.
@@ -37,7 +39,8 @@ npm test                                      # full suite in Chromium, Firefox,
 npx playwright test --project=chromium        # full suite in Chromium only
 npx playwright test tests/ui                  # SauceDemo UI suite
 npx playwright test tests/api                 # DummyJSON API suite
-npx playwright test tests/quality             # documentation quality checks
+npx playwright test tests/quality             # docs and storefront quality checks
+npx playwright test tests/ui/order-lifecycle.spec.js
 npx playwright test tests/example.spec.js     # documentation smoke tests
 npm run test:headed                           # full suite with visible browsers
 npm run test:ui                               # interactive Playwright UI mode

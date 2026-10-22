@@ -7,7 +7,19 @@
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
-    "report": "playwright show-report"
+    "report": "playwright show-report",
+    "test:ui-tests": "playwright test tests/ui/",
+    "test:api-tests": "playwright test tests/api/",
+    "test:quality": "playwright test tests/quality/",
+    "test:edge-cases": "playwright test tests/ui/edge-cases.spec.js",
+    "test:negative": "playwright test tests/ui/negative.spec.js",
+    "test:data-driven": "playwright test tests/ui/data-driven.spec.js",
+    "test:visual": "playwright test tests/ui/visual.spec.js",
+    "test:performance": "playwright test tests/ui/performance.spec.js",
+    "test:accessibility": "playwright test tests/ui/accessibility.spec.js",
+    "test:robust-api": "playwright test tests/api/robust-api.spec.js",
+    "test:mobile": "playwright test --project='Mobile Chrome' --project='Mobile Safari'",
+    "test:ci": "playwright test --reporter=dot"
   },
   "repository": {
     "type": "git",
