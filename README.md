@@ -32,9 +32,9 @@ All three are external public services. There is no application-under-test in th
 
 | File | Covers |
 | --- | --- |
-| `dummyjson.spec.js` | Products/users pagination, sorting, category filter, search, detail lookup, unknown-id 404, simulated create/update/delete, carts, posts, comments, quotes, auth login success/failure |
-| `robust-api.spec.js` | Edge cases: limit/skip boundaries, invalid sort/order handling, special-character search and category, non-numeric ids, creation with missing fields, plus carts/posts/comments/quotes/auth coverage |
-| `resilience.spec.js` | JSON response headers, unique ascending ids, unicode round-trip create, cart ownership and totals, empty PATCH body |
+| `dummyjson.spec.js` | Products/users pagination, sorting in both directions, category filter, search with every-result matching, detail lookup, exact not-found messages, simulated create/update/delete response contracts, carts, posts, comments, quotes, auth login success/failure |
+| `robust-api.spec.js` | Boundary and validation cases: limit/skip edges (limit=0, clamping, out-of-range skip, negative skip → 400), invalid sort parameters with exact error messages, unknown category and no-match searches, non-numeric ids (products → 404, users → 400), partial-payload creation, PATCH on a missing product, carts/posts/comments/quotes field checks, auth token and error contracts |
+| `resilience.spec.js` | JSON response headers, unique ascending ids, unicode payload echoed by the simulated create, cart ownership and totals, empty PATCH body leaves the product unchanged |
 
 ### Quality (`tests/quality/`)
 
@@ -48,9 +48,22 @@ All three are external public services. There is no application-under-test in th
 
 - `tests/example.spec.js` — playwright.dev homepage and docs navigation smoke checks.
 
+## Selected scenarios
+
+A few examples of what the tests actually pin down, and why:
+
+- **Checkout validation** (`tests/ui/checkout.spec.js`): submitting checkout without a first name must show `First Name is required` *and* leave the URL on `checkout-step-one.html`. Checking both matters — an error banner alone would pass even if the app had already navigated away.
+- **API sort parameters** (`tests/api/robust-api.spec.js`): an invalid `order` value returns 400 with the API's validation message, while an unknown `sortBy` silently falls back to natural id order. The two parameters fail differently, so each test pins down the real per-parameter contract instead of asserting a generic success status.
+- **Whitespace-only first name** (`tests/ui/deep-flows.spec.js`): SauceDemo accepts a first name of only spaces. The test asserts what the app really does, so a future change to this edge case shows up as a failure; it documents behavior rather than endorsing it.
+- **Keyboard login across engines** (`tests/quality/storefront-quality.spec.js`): log in with the keyboard only — Tab from username to password, then Enter. WebKit leaves the submit button out of its tab order (observed against the live site), so Enter from the password field is the portable keyboard path, and the test says so in a comment.
+
+## Technologies
+
+Playwright Test (browser and API request fixtures), plain JavaScript on Node.js, GitHub Actions for CI, and the Playwright HTML report with traces for debugging. No TypeScript and no extra frameworks: the suite runs with `npx playwright test`.
+
 ## Requirements
 
-- Node.js 20 or later (CI uses Node 20) and npm
+- Node.js 20 or later (CI uses Node 22) and npm
 - Network access to install packages and browsers, and to reach all three targets
 
 ```bash
@@ -85,7 +98,7 @@ npm run test:performance     # tests/ui/performance.spec.js
 npm run test:accessibility   # tests/ui/accessibility.spec.js
 npm run test:robust-api      # tests/api/robust-api.spec.js
 npm run test:mobile          # Mobile Chrome + Mobile Safari projects
-npm run test:ci              # dot reporter, used on CI
+npm run test:ci              # dot reporter, for a quiet full run (CI itself runs npm test)
 ```
 
 An unfiltered run executes each test once per project — chromium, firefox, webkit, Mobile Chrome (Pixel 5) and Mobile Safari (iPhone 12) — so API and docs specs also run five times. Combine a path with a project filter to narrow it: `npx playwright test tests/ui --project=chromium`. Tests run in parallel per file; retries are off locally and 2 on CI.
@@ -102,14 +115,16 @@ npm run report   # opens the latest HTML report (npx playwright show-report)
 
 ## CI
 
-`.github/workflows/playwright.yml` runs on pushes and PRs to `main`/`master`: Node 20, `npm ci`, browser install with Linux deps, `npm run test:ci`, and uploads `playwright-report/` + `test-results/` as the `playwright-diagnostics` artifact (14-day retention) even when tests fail. CI needs the same network access to the public targets.
+`.github/workflows/playwright.yml` runs on pushes and pull requests to `main`: Node 22, `npm ci`, browser install with Linux deps, then `npm test` — the full suite, all five projects, with the list and HTML reporters. When the run fails it uploads `playwright-report/` and `test-results/` (screenshots, videos, traces) as the `playwright-report` artifact, kept for 7 days, so a red run can be investigated from the browser. The workflow uses no secrets; CI needs the same network access to the public targets as a local run.
 
 ## Verification status
 
-The suites have been executed and pass on Chromium and the other projects installed on the machine where they were last verified (WebKit and the mobile projects). Firefox browsers were not installed there, so Firefox was not exercised locally; CI installs it along with Chromium and WebKit. No pass counts or badges are claimed here.
+The suites have been executed and pass on Chromium, WebKit, Mobile Chrome and Mobile Safari — every project installed on the machine where they were last verified. The API suite additionally runs under the firefox project (request-only tests need no browser); the firefox browser binaries were not installed there, so its UI tests were not exercised locally, and CI installs them along with Chromium and WebKit. No pass counts or badges are claimed here.
 
 ## Limitations
 
 SauceDemo and DummyJSON are public demo services outside this repo's control. Availability, content, rate limits or behavior changes on their side can fail tests regardless of test code; keep request volume modest and don't rely on persistent shared state. The UI suite depends on SauceDemo's public demo accounts (including `problem_user` and `performance_glitch_user`).
 
 DummyJSON write endpoints are simulated: create/update/delete tests assert the response the demo API returns, not durable changes to its data. Treat them as response-contract checks, not persistence tests.
+
+Scenario rationale and trade-offs (why there are no screenshot baselines or wall-clock thresholds, which observed edge cases are asserted and how one flaky detail-page test was investigated) are in [TESTING_NOTES.md](TESTING_NOTES.md).

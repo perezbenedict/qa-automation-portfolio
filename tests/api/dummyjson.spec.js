@@ -65,22 +65,33 @@ test.describe('DummyJSON products API', () => {
     }
   });
 
-  test('sorts products by title in the requested order', async ({ request }) => {
-    const response = await request.get(
+  test('orders products ascending by title and descending by price', async ({ request }) => {
+    const ascResponse = await request.get(
       `${API_URL}/products?sortBy=title&order=asc&limit=10`,
     );
 
-    expect(response.status()).toBe(200);
-    const payload = await response.json();
-    expect(payload).toEqual(expect.objectContaining({
+    expect(ascResponse.status()).toBe(200);
+    const ascPayload = await ascResponse.json();
+    expect(ascPayload).toEqual(expect.objectContaining({
       limit: 10,
       skip: 0,
       products: expect.any(Array),
     }));
-    expect(payload.products.length).toBeGreaterThan(0);
+    expect(ascPayload.products.length).toBeGreaterThan(0);
 
-    const titles = payload.products.map((product) => product.title.toLowerCase());
+    const titles = ascPayload.products.map((product) => product.title.toLowerCase());
     expect(titles).toEqual([...titles].sort((left, right) => left.localeCompare(right)));
+
+    const descResponse = await request.get(
+      `${API_URL}/products?sortBy=price&order=desc&limit=10`,
+    );
+
+    expect(descResponse.status()).toBe(200);
+    const descPayload = await descResponse.json();
+    expect(descPayload.products).toHaveLength(10);
+
+    const prices = descPayload.products.map((product) => product.price);
+    expect(prices).toEqual([...prices].sort((left, right) => right - left));
   });
 
   test('lists product categories and filters products by a returned category', async ({ request }) => {
@@ -104,6 +115,7 @@ test.describe('DummyJSON products API', () => {
       limit: 5,
     }));
     expect(payload.products.length).toBeGreaterThan(0);
+    expect(payload.total).toBeGreaterThanOrEqual(payload.products.length);
     for (const product of payload.products) {
       expect(product.category).toBe(category);
     }
@@ -121,23 +133,27 @@ test.describe('DummyJSON products API', () => {
       title: expect.any(String),
       description: expect.any(String),
       category: expect.any(String),
+      price: expect.any(Number),
       rating: expect.any(Number),
       images: expect.any(Array),
     }));
     expect(product.title.length).toBeGreaterThan(0);
+    expect(product.price).toBeGreaterThan(0);
     expect(product.images.length).toBeGreaterThan(0);
   });
 
-  test('searches products using the supplied query', async ({ request }) => {
+  test('search returns only products whose text matches the query', async ({ request }) => {
     const response = await request.get(`${API_URL}/products/search?q=phone`);
 
     expect(response.status()).toBe(200);
     const result = await response.json();
 
-    expect(result.products.length).toBeGreaterThan(0);
-    expect(
-      result.products.some((product) => /phone/i.test(`${product.title} ${product.description}`)),
-    ).toBe(true);
+    expect(result.total).toBeGreaterThan(0);
+    expect(result.products.length).toBe(result.total);
+    for (const product of result.products) {
+      expect(`${product.title} ${product.description} ${product.category} ${product.brand ?? ''}`)
+        .toMatch(/phone/i);
+    }
   });
 
   test('returns a not-found response for an unknown product ID', async ({ request }) => {
@@ -145,12 +161,12 @@ test.describe('DummyJSON products API', () => {
 
     expect(response.status()).toBe(404);
     expect(response.headers()['content-type']).toMatch(/application\/json/i);
-    await expect(response.json()).resolves.toEqual(expect.objectContaining({
-      message: expect.stringMatching(/not found/i),
-    }));
+    await expect(response.json()).resolves.toEqual({
+      message: "Product with id '999999' not found",
+    });
   });
 
-  test('creates a product and echoes the submitted fields', async ({ request }) => {
+  test('returns a simulated created product echoing the submitted fields', async ({ request }) => {
     const newProduct = {
       title: 'Playwright portfolio API test product',
       price: 19.99,
@@ -162,34 +178,46 @@ test.describe('DummyJSON products API', () => {
 
     expect(response.status()).toBe(201);
     expect(response.headers()['content-type']).toMatch(/application\/json/i);
-    expect(await response.json()).toEqual(expect.objectContaining({
+    const payload = await response.json();
+    expect(payload).toEqual(expect.objectContaining({
       id: expect.any(Number),
       ...newProduct,
     }));
+    // DummyJSON only simulates writes: the response echoes the submitted
+    // fields plus a generated id and nothing is persisted server-side.
+    expect(Object.keys(payload).sort()).toEqual(['category', 'id', 'price', 'title']);
   });
 
-  test('updates a product using a partial payload', async ({ request }) => {
+  test('returns the simulated update with the partial payload merged into the product', async ({ request }) => {
     const changes = { title: 'Updated by the Playwright portfolio suite' };
     const response = await request.patch(`${API_URL}/products/1`, {
       data: changes,
     });
 
     expect(response.status()).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({
+    const payload = await response.json();
+    expect(payload).toEqual(expect.objectContaining({
       id: 1,
       ...changes,
+      // Fields outside the payload are preserved in the simulated response.
+      price: 9.99,
+      description: expect.any(String),
+      images: expect.any(Array),
     }));
   });
 
-  test('reports a simulated product deletion', async ({ request }) => {
+  test('reports a simulated product deletion with isDeleted and deletedOn', async ({ request }) => {
     const response = await request.delete(`${API_URL}/products/1`);
 
     expect(response.status()).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({
+    const payload = await response.json();
+    expect(payload).toEqual(expect.objectContaining({
       id: 1,
+      title: expect.any(String),
       isDeleted: true,
       deletedOn: expect.any(String),
     }));
+    expect(new Date(payload.deletedOn).toISOString()).toBe(payload.deletedOn);
   });
 });
 
@@ -243,7 +271,7 @@ test.describe('DummyJSON users API', () => {
     }
   });
 
-  test('searches users using a name obtained from the user collection', async ({ request }) => {
+  test('user search returns only users whose name matches the query', async ({ request }) => {
     const collectionResponse = await request.get(`${API_URL}/users?limit=1`);
 
     expect(collectionResponse.status()).toBe(200);
@@ -265,18 +293,20 @@ test.describe('DummyJSON users API', () => {
       skip: expect.any(Number),
       limit: expect.any(Number),
     }));
+    expect(result.users.length).toBe(result.total);
     expect(result.users.length).toBeGreaterThan(0);
-    expect(result.users.some((user) => (
-      `${user.firstName} ${user.lastName}`.toLowerCase().includes(query.toLowerCase())
-    ))).toBe(true);
+    for (const user of result.users) {
+      expect(`${user.firstName} ${user.lastName} ${user.username}`.toLowerCase())
+        .toContain(query.toLowerCase());
+    }
   });
 
   test('returns a not-found response for an unknown user ID', async ({ request }) => {
     const response = await request.get(`${API_URL}/users/999999`);
 
     expect(response.status()).toBe(404);
-    await expect(response.json()).resolves.toEqual(expect.objectContaining({
-      message: expect.stringMatching(/not found/i),
-    }));
+    await expect(response.json()).resolves.toEqual({
+      message: "User with id '999999' not found",
+    });
   });
 });

@@ -1,8 +1,7 @@
 {
   "name": "qa-automation-portfolio",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "JavaScript and Playwright testing portfolio: UI, API, accessibility and responsive checks against public demo applications",
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
@@ -24,8 +23,16 @@
     "type": "git",
     "url": "git+https://github.com/perezbenedict/qa-automation-portfolio.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "playwright",
+    "javascript",
+    "qa",
+    "test-automation",
+    "api-testing",
+    "accessibility",
+    "e2e-testing"
+  ],
+  "author": "Perez Benedict",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {

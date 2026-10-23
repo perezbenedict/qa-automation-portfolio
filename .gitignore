@@ -6,3 +6,11 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# Local environment and logs
+.env
+.env.*
+*.log
+
+# OS
+.DS_Store
