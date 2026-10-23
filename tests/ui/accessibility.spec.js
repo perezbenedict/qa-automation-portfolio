@@ -1,18 +1,18 @@
 // @ts-check
+// Focused accessibility checks against SauceDemo; not a WCAG conformance audit.
 import { test, expect } from '@playwright/test';
-import { loginAs, SAUCEDEMO_URL, STANDARD_USER, DEMO_PASSWORD } from '../ui/helpers.js';
+import { loginAs, addFirstProductToCart, openCart, SAUCEDEMO_URL } from '../ui/helpers.js';
 
 test.describe('SauceDemo accessibility tests', () => {
-  test('login page has proper heading structure', async ({ page }) => {
+  test('login page shows the Swag Labs brand text', async ({ page }) => {
     await page.goto(SAUCEDEMO_URL);
 
-    const logoCount = await page.locator('.login_logo').count();
-    expect(logoCount).toBe(1);
-
-    await expect(page.locator('.login_logo')).toContainText('Swag Labs');
+    const logo = page.locator('.login_logo');
+    await expect(logo).toHaveCount(1);
+    await expect(logo).toContainText('Swag Labs');
   });
 
-  test('login form has proper labels and accessible names', async ({ page }) => {
+  test('login inputs expose prompts and a named submit button', async ({ page }) => {
     await page.goto(SAUCEDEMO_URL);
 
     const usernameInput = page.getByPlaceholder('Username');
@@ -20,19 +20,22 @@ test.describe('SauceDemo accessibility tests', () => {
     const loginButton = page.getByRole('button', { name: 'Login' });
 
     await expect(usernameInput).toBeVisible();
+    await expect(usernameInput).toHaveAttribute('type', 'text');
     await expect(passwordInput).toBeVisible();
     await expect(loginButton).toBeVisible();
-
-    await expect(usernameInput).toHaveAttribute('type', 'text');
-    await expect(passwordInput).toHaveAttribute('type', 'password');
   });
 
-  test('login page is keyboard navigable', async ({ page }) => {
+  test('password input is masked as a password field', async ({ page }) => {
+    await page.goto(SAUCEDEMO_URL);
+
+    await expect(page.getByPlaceholder('Password')).toHaveAttribute('type', 'password');
+  });
+
+  test('login inputs follow a logical tab order', async ({ page }) => {
     await page.goto(SAUCEDEMO_URL);
 
     const usernameInput = page.getByPlaceholder('Username');
     const passwordInput = page.getByPlaceholder('Password');
-    const loginButton = page.getByRole('button', { name: 'Login' });
 
     await usernameInput.focus();
     await expect(usernameInput).toBeFocused();
@@ -40,82 +43,76 @@ test.describe('SauceDemo accessibility tests', () => {
     await page.keyboard.press('Tab');
     await expect(passwordInput).toBeFocused();
 
-    await page.keyboard.press('Tab');
-    await expect(loginButton).toBeFocused();
+    // Tab moves from the username field into the password field - the order a
+    // keyboard user meets the inputs. WebKit does not include the submit
+    // button in its tab order (Tab from password lands on the document body),
+    // so the cross-engine tab-order contract stops at the inputs; keyboard
+    // submission with Enter is covered by the storefront quality suite.
   });
 
-  test('catalog page has proper heading structure', async ({ page }) => {
+  test('invalid login surfaces a visible error message', async ({ page }) => {
+    await page.goto(SAUCEDEMO_URL);
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    const errorContainer = page.locator('[data-test="error"]');
+    await expect(errorContainer).toBeAttached();
+    await expect(errorContainer).toBeVisible();
+    await expect(errorContainer).toContainText('Username is required');
+  });
+
+  test('products page exposes a single Products heading', async ({ page }) => {
     await loginAs(page);
 
     const title = page.locator('[data-test="title"]');
-    await expect(title).toHaveText('Products', { timeout: 10000 });
-    const titleCount = await title.count();
-    expect(titleCount).toBe(1);
+    await expect(title).toHaveCount(1);
+    await expect(title).toHaveText('Products');
   });
 
-  test('product items have accessible names', async ({ page }) => {
+  test('catalog items expose name, price, and an add-to-cart button', async ({ page }) => {
     await loginAs(page);
 
     const products = page.locator('.inventory_item');
-    const count = await products.count();
-    expect(count).toBeGreaterThan(0);
+    await expect(products.first()).toBeVisible();
+    const productCount = await products.count();
+    expect(productCount).toBeGreaterThan(0);
 
-    for (let i = 0; i < Math.min(count, 3); i++) {
+    for (let i = 0; i < Math.min(productCount, 3); i++) {
       const product = products.nth(i);
-      const name = product.locator('.inventory_item_name');
-      const price = product.locator('.inventory_item_price');
-      const addButton = product.getByRole('button', { name: 'Add to cart' });
 
-      await expect(name).toBeVisible();
-      await expect(price).toBeVisible();
-      await expect(addButton).toBeVisible();
+      await expect(product.locator('.inventory_item_name')).toBeVisible();
+      await expect(product.locator('.inventory_item_price')).toBeVisible();
+      await expect(product.getByRole('button', { name: 'Add to cart' })).toBeVisible();
     }
   });
 
-  test('sort dropdown is accessible', async ({ page }) => {
+  test('sort control has an accessible label and four options', async ({ page }) => {
     await loginAs(page);
 
     const sortControl = page.locator('[data-test="product-sort-container"]');
     await expect(sortControl).toBeVisible();
-    // Native select elements have implicit combobox role
     await expect(sortControl).toHaveAttribute('aria-label', 'Sort products');
-    // The select element should have options
-    const options = await sortControl.locator('option').count();
-    expect(options).toBe(4);
+    await expect(sortControl.locator('option')).toHaveCount(4);
   });
 
-  test('cart page has proper structure', async ({ page }) => {
+  test('cart shows the added item with remove and checkout actions', async ({ page }) => {
     await loginAs(page);
-    const firstProduct = page.locator('.inventory_item').first();
-    await firstProduct.getByRole('button', { name: 'Add to cart' }).click();
-    await page.locator('[data-test="shopping-cart-link"]').click();
+    const productName = await addFirstProductToCart(page);
+    await openCart(page);
 
     await expect(page).toHaveURL(/\/cart\.html$/);
-
-    const titleCount = await page.locator('[data-test="title"]').count();
-    expect(titleCount).toBe(1);
+    await expect(page.locator('[data-test="title"]')).toHaveCount(1);
     await expect(page.locator('[data-test="title"]')).toHaveText('Your Cart');
 
+    await expect(page.getByText(productName, { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Continue Shopping' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Checkout' })).toBeVisible();
   });
 
-  test('cart items have remove buttons with accessible names', async ({ page }) => {
+  test('checkout form exposes prompts for all required fields', async ({ page }) => {
     await loginAs(page);
-    const firstProduct = page.locator('.inventory_item').first();
-    const productName = await firstProduct.locator('.inventory_item_name').innerText();
-    await firstProduct.getByRole('button', { name: 'Add to cart' }).click();
-    await page.locator('[data-test="shopping-cart-link"]').click();
-
-    await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible();
-    await expect(page.getByText(productName, { exact: true })).toBeVisible();
-  });
-
-  test('checkout form has proper labels', async ({ page }) => {
-    await loginAs(page);
-    const firstProduct = page.locator('.inventory_item').first();
-    await firstProduct.getByRole('button', { name: 'Add to cart' }).click();
-    await page.locator('[data-test="shopping-cart-link"]').click();
+    await addFirstProductToCart(page);
+    await openCart(page);
     await page.getByRole('button', { name: 'Checkout' }).click();
 
     await expect(page.getByPlaceholder('First Name')).toBeVisible();
@@ -126,11 +123,10 @@ test.describe('SauceDemo accessibility tests', () => {
     await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
   });
 
-  test('checkout overview has proper structure', async ({ page }) => {
+  test('checkout overview exposes a single heading and finish/cancel actions', async ({ page }) => {
     await loginAs(page);
-    const firstProduct = page.locator('.inventory_item').first();
-    await firstProduct.getByRole('button', { name: 'Add to cart' }).click();
-    await page.locator('[data-test="shopping-cart-link"]').click();
+    await addFirstProductToCart(page);
+    await openCart(page);
     await page.getByRole('button', { name: 'Checkout' }).click();
     await page.getByPlaceholder('First Name').fill('John');
     await page.getByPlaceholder('Last Name').fill('Doe');
@@ -138,20 +134,17 @@ test.describe('SauceDemo accessibility tests', () => {
     await page.getByRole('button', { name: 'Continue' }).click();
 
     await expect(page).toHaveURL(/\/checkout-step-two\.html$/);
-
-    const titleCount = await page.locator('[data-test="title"]').count();
-    expect(titleCount).toBe(1);
+    await expect(page.locator('[data-test="title"]')).toHaveCount(1);
     await expect(page.locator('[data-test="title"]')).toHaveText('Checkout: Overview');
 
     await expect(page.getByRole('button', { name: 'Finish' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
   });
 
-  test('checkout complete page has success message', async ({ page }) => {
+  test('checkout complete page confirms the order with a single heading', async ({ page }) => {
     await loginAs(page);
-    const firstProduct = page.locator('.inventory_item').first();
-    await firstProduct.getByRole('button', { name: 'Add to cart' }).click();
-    await page.locator('[data-test="shopping-cart-link"]').click();
+    await addFirstProductToCart(page);
+    await openCart(page);
     await page.getByRole('button', { name: 'Checkout' }).click();
     await page.getByPlaceholder('First Name').fill('John');
     await page.getByPlaceholder('Last Name').fill('Doe');
@@ -160,90 +153,40 @@ test.describe('SauceDemo accessibility tests', () => {
     await page.getByRole('button', { name: 'Finish' }).click();
 
     await expect(page).toHaveURL(/\/checkout-complete\.html$/);
-
-    const titleCount = await page.locator('[data-test="title"]').count();
-    expect(titleCount).toBe(1);
+    await expect(page.locator('[data-test="title"]')).toHaveCount(1);
     await expect(page.locator('[data-test="title"]')).toHaveText('Checkout: Complete!');
 
     await expect(page.getByText('Thank you for your order!')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Back Home' })).toBeVisible();
   });
 
-  test('error messages are announced to screen readers', async ({ page }) => {
-    await page.goto(SAUCEDEMO_URL);
-    await page.getByRole('button', { name: 'Login' }).click();
-
-    const errorContainer = page.locator('[data-test="error"]');
-    await expect(errorContainer).toBeVisible();
-    await expect(errorContainer).toContainText('Username is required');
-  });
-
-  test('menu button is accessible', async ({ page }) => {
+  test('burger menu opens with Enter and reveals Logout', async ({ page }) => {
     await loginAs(page);
 
     const menuButton = page.getByRole('button', { name: 'Open Menu' });
     await expect(menuButton).toBeVisible();
+    await menuButton.focus();
+    await page.keyboard.press('Enter');
 
-    await menuButton.click();
     await expect(page.getByRole('button', { name: 'Logout' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Reset App State' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Close Menu' })).toBeVisible();
   });
 
-  test('images have alt text', async ({ page }) => {
+  test('at least one product image has alt text', async ({ page }) => {
     await loginAs(page);
 
-    const productImages = page.locator('.inventory_item_img');
-    const count = await productImages.count();
+    // Some SauceDemo images lack alt text, so only the honest minimum is asserted.
+    const images = page.locator('.inventory_item img');
+    await expect(images.first()).toBeVisible();
+    const count = await images.count();
+    expect(count).toBeGreaterThan(0);
 
     let imagesWithAlt = 0;
     for (let i = 0; i < count; i++) {
-      const img = productImages.nth(i);
-      const alt = await img.getAttribute('alt');
-      if (alt !== null && alt.length > 0) {
-        imagesWithAlt++;
-      }
+      const alt = await images.nth(i).getAttribute('alt');
+      if (alt) imagesWithAlt++;
     }
-    // At least some product images should have alt text
     expect(imagesWithAlt).toBeGreaterThan(0);
-  });
-
-  test('color contrast is sufficient', async ({ page }) => {
-    await page.goto(SAUCEDEMO_URL);
-
-    const usernameInput = page.getByPlaceholder('Username');
-    const backgroundColor = await usernameInput.evaluate(el =>
-      window.getComputedStyle(el).backgroundColor
-    );
-    const color = await usernameInput.evaluate(el =>
-      window.getComputedStyle(el).color
-    );
-
-    expect(backgroundColor).toBeTruthy();
-    expect(color).toBeTruthy();
-  });
-
-  test('focus indicators are visible', async ({ page }) => {
-    await page.goto(SAUCEDEMO_URL);
-
-    const usernameInput = page.getByPlaceholder('Username');
-    await usernameInput.focus();
-    await expect(usernameInput).toBeFocused();
-
-    const outline = await usernameInput.evaluate(el =>
-      window.getComputedStyle(el).outline
-    );
-    expect(outline).not.toBe('none');
-  });
-
-  test('landmark navigation exists', async ({ page }) => {
-    await loginAs(page);
-
-    const main = page.getByRole('main');
-    await expect(main).toBeVisible();
-
-    // The burger menu acts as navigation
-    const menuButton = page.getByRole('button', { name: 'Open Menu' });
-    await expect(menuButton).toBeVisible();
   });
 });

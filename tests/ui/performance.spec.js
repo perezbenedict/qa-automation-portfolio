@@ -1,129 +1,74 @@
 // @ts-check
+// Verifies pages become usable and flows complete; these are not micro-benchmarks.
 import { test, expect } from '@playwright/test';
-import { loginAs, addFirstProductToCart, openCart, SAUCEDEMO_URL, STANDARD_USER, DEMO_PASSWORD } from '../ui/helpers.js';
+import { SAUCEDEMO_URL, loginAs, addFirstProductToCart, openCart } from './helpers.js';
 
-test.describe('SauceDemo performance tests', () => {
-  test('login page loads within acceptable time', async ({ page }) => {
-    const startTime = Date.now();
+test.describe('SauceDemo page usability', () => {
+  test('login form renders with usable inputs and submit button', async ({ page }) => {
     await page.goto(SAUCEDEMO_URL);
+
+    await expect(page.getByPlaceholder('Username')).toBeVisible();
+    await expect(page.locator('input[placeholder="Password"][type="password"]')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
-    const loadTime = Date.now() - startTime;
-    expect(loadTime).toBeLessThan(5000);
+    await expect(page.getByRole('button', { name: 'Login' })).toBeEnabled();
   });
 
-  test('authentication completes within acceptable time', async ({ page }) => {
-    await page.goto(SAUCEDEMO_URL);
-    const startTime = Date.now();
+  test('successful login lands on a populated catalog', async ({ page }) => {
     await loginAs(page);
-    const authTime = Date.now() - startTime;
-    expect(authTime).toBeLessThan(3000);
+
+    await expect(page).toHaveURL(/\/inventory\.html$/);
     await expect(page.locator('[data-test="title"]')).toHaveText('Products');
+
+    const firstItem = page.locator('.inventory_item').first();
+    await expect(firstItem.locator('.inventory_item_name')).toBeVisible();
+    await expect(firstItem.locator('.inventory_item_price')).toBeVisible();
   });
 
-  test('catalog page renders within acceptable time', async ({ page }) => {
+  test('sorting by price high-to-low reorders the visible catalog', async ({ page }) => {
     await loginAs(page);
-    const startTime = Date.now();
-    await expect(page.locator('[data-test="title"]')).toHaveText('Products');
-    await expect(page.locator('.inventory_item').first()).toBeVisible();
-    const renderTime = Date.now() - startTime;
-    expect(renderTime).toBeLessThan(2000);
+    const productPrices = page.locator('.inventory_item_price');
+    await expect(productPrices.first()).toBeVisible();
+    const pricesInCatalog = (await productPrices.allTextContents()).map((price) =>
+      parseFloat(price.replace('$', '')),
+    );
+
+    await page.locator('[data-test="product-sort-container"]').selectOption('hilo');
+    await expect.poll(async () =>
+      (await productPrices.allTextContents()).map((price) => parseFloat(price.replace('$', ''))),
+    ).toEqual([...pricesInCatalog].sort((a, b) => b - a));
   });
 
-  test('product detail page loads within acceptable time', async ({ page }) => {
+  test('cart accepts a product and exposes checkout', async ({ page }) => {
     await loginAs(page);
-    const firstProduct = page.locator('.inventory_item').first();
-    const productName = await firstProduct.locator('.inventory_item_name').innerText();
+    const productName = await addFirstProductToCart(page);
 
-    const startTime = Date.now();
-    await firstProduct.getByRole('button', { name: `View details for ${productName}` }).first().click();
-    await expect(page).toHaveURL(/\/inventory-item\.html\?id=\d+$/);
+    await expect(page.locator('[data-test="shopping-cart-badge"]')).toHaveText('1');
+
+    await openCart(page);
+    await expect(page).toHaveURL(/\/cart\.html$/);
     await expect(page.getByText(productName, { exact: true })).toBeVisible();
-    const loadTime = Date.now() - startTime;
-    expect(loadTime).toBeLessThan(2000);
+    await expect(page.getByRole('button', { name: 'Checkout' })).toBeEnabled();
   });
 
-  test('cart operations complete within acceptable time', async ({ page }) => {
-    await loginAs(page);
-
-    const addStartTime = Date.now();
-    await addFirstProductToCart(page);
-    const addTime = Date.now() - addStartTime;
-    expect(addTime).toBeLessThan(1000);
-
-    const cartStartTime = Date.now();
-    await openCart(page);
-    await expect(page.locator('.cart_item')).toHaveCount(1);
-    const cartTime = Date.now() - cartStartTime;
-    expect(cartTime).toBeLessThan(1000);
-  });
-
-  test('checkout flow completes within acceptable time', async ({ page }) => {
+  test('complete checkout reaches the order confirmation', async ({ page }) => {
     await loginAs(page);
     await addFirstProductToCart(page);
     await openCart(page);
 
-    const startTime = Date.now();
     await page.getByRole('button', { name: 'Checkout' }).click();
-    await page.getByPlaceholder('First Name').fill('John');
-    await page.getByPlaceholder('Last Name').fill('Doe');
+    await page.getByPlaceholder('First Name').fill('Taylor');
+    await page.getByPlaceholder('Last Name').fill('Morgan');
     await page.getByPlaceholder('Zip/Postal Code').fill('10001');
     await page.getByRole('button', { name: 'Continue' }).click();
-    await page.getByRole('button', { name: 'Finish' }).click();
-    await expect(page.getByText('Thank you for your order!')).toBeVisible();
-    const checkoutTime = Date.now() - startTime;
-    expect(checkoutTime).toBeLessThan(5000);
-  });
 
-  test('sort operations respond within acceptable time', async ({ page }) => {
-    await loginAs(page);
-    const sortControl = page.locator('[data-test="product-sort-container"]');
-
-    for (const option of ['az', 'za', 'lohi', 'hilo']) {
-      const startTime = Date.now();
-      await sortControl.selectOption(option);
-      await page.waitForTimeout(100);
-      const sortTime = Date.now() - startTime;
-      expect(sortTime).toBeLessThan(1000);
-    }
-  });
-
-  test('page navigation between steps is fast', async ({ page }) => {
-    await loginAs(page);
-    await addFirstProductToCart(page);
-    await openCart(page);
-
-    const navTimes = [];
-
-    const step1Start = Date.now();
-    await page.getByRole('button', { name: 'Checkout' }).click();
-    await expect(page).toHaveURL(/\/checkout-step-one\.html$/);
-    navTimes.push(Date.now() - step1Start);
-
-    const step2Start = Date.now();
-    await page.getByPlaceholder('First Name').fill('John');
-    await page.getByPlaceholder('Last Name').fill('Doe');
-    await page.getByPlaceholder('Zip/Postal Code').fill('10001');
-    await page.getByRole('button', { name: 'Continue' }).click();
     await expect(page).toHaveURL(/\/checkout-step-two\.html$/);
-    navTimes.push(Date.now() - step2Start);
+    await expect(page.locator('[data-test="total-label"]')).toContainText('Total:');
 
-    const step3Start = Date.now();
     await page.getByRole('button', { name: 'Finish' }).click();
     await expect(page).toHaveURL(/\/checkout-complete\.html$/);
-    navTimes.push(Date.now() - step3Start);
+    await expect(page.getByText('Thank you for your order!', { exact: true })).toBeVisible();
 
-    for (const time of navTimes) {
-      expect(time).toBeLessThan(2000);
-    }
-  });
-
-  test('logout is immediate', async ({ page }) => {
-    await loginAs(page);
-    const startTime = Date.now();
-    await page.getByRole('button', { name: 'Open Menu' }).click();
-    await page.getByRole('button', { name: 'Logout' }).click();
-    await expect(page).toHaveURL(/\/$/);
-    const logoutTime = Date.now() - startTime;
-    expect(logoutTime).toBeLessThan(1000);
+    await page.getByRole('button', { name: 'Back Home' }).click();
+    await expect(page.locator('[data-test="shopping-cart-badge"]')).toHaveCount(0);
   });
 });

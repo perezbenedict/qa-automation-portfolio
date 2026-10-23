@@ -1,8 +1,17 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
 
+// playwright.dev collapses its navigation on narrow viewports; expand it when present.
+async function expandMobileNav(page) {
+  const toggle = page.getByRole('button', { name: 'Toggle navigation bar' });
+  if (await toggle.isVisible()) {
+    await toggle.click();
+  }
+}
+
 test('homepage identifies Playwright and exposes documentation navigation', async ({ page }) => {
   await page.goto('/');
+  await expandMobileNav(page);
 
   await expect(page).toHaveTitle(/Playwright/);
   await expect(page.getByRole('banner').getByRole('heading', { level: 1 })).toContainText(/Playwright/);
@@ -30,6 +39,7 @@ test('installation guide presents the Playwright setup command', async ({ page }
 
 test('readers can navigate from installation to writing tests', async ({ page }) => {
   await page.goto('/docs/intro');
+  await expandMobileNav(page);
 
   await page.getByRole('link', { name: 'Writing tests', exact: true }).click();
 

@@ -1,9 +1,18 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
 
+// playwright.dev collapses its navigation on narrow viewports; expand it when present.
+async function expandMobileNav(page) {
+  const toggle = page.getByRole('button', { name: 'Toggle navigation bar' });
+  if (await toggle.isVisible()) {
+    await toggle.click();
+  }
+}
+
 test.describe('Playwright documentation quality', () => {
   test('installation page exposes clear page landmarks and heading structure', async ({ page }) => {
     await page.goto('/docs/intro');
+    await expandMobileNav(page);
 
     await expect(page).toHaveTitle(/Playwright/);
     const main = page.getByRole('main');
@@ -18,6 +27,7 @@ test.describe('Playwright documentation quality', () => {
 
   test('keyboard activation follows a documentation link and browser history', async ({ page }) => {
     await page.goto('/docs/intro');
+    await expandMobileNav(page);
 
     const writingTestsLink = page.getByRole('link', {
       name: 'Writing tests',

@@ -41,6 +41,11 @@ test.describe('Responsive and cross-page quality', () => {
   test('docs homepage exposes a visible Docs link in the main navigation', async ({ page }) => {
     await page.goto('/');
 
+    const toggle = page.getByRole('button', { name: 'Toggle navigation bar' });
+    if (await toggle.isVisible()) {
+      await toggle.click();
+    }
+
     await expect(page).toHaveTitle(/Playwright/);
     await expect(
       page.getByRole('navigation').getByRole('link', { name: 'Docs', exact: true }),

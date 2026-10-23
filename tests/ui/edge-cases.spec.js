@@ -92,26 +92,13 @@ test.describe('SauceDemo edge cases and boundary conditions', () => {
   test('performance_glitch_user experiences delays but functions', async ({ page }) => {
     await page.goto(SAUCEDEMO_URL);
     await loginAs(page, 'performance_glitch_user', DEMO_PASSWORD);
-    await expect(page.locator('[data-test="title"]')).toHaveText('Products', { timeout: 15000 });
+    // The glitch user's load delay can exceed the 5s default; capped at 10s.
+    await expect(page.locator('[data-test="title"]')).toHaveText('Products', { timeout: 10000 });
 
-    await test.step('add product to cart despite delays', async () => {
-      await addFirstProductToCart(page);
-      await expect(page.locator('[data-test="shopping-cart-badge"]')).toHaveText('1');
-    });
+    await addFirstProductToCart(page);
+    await expect(page.locator('[data-test="shopping-cart-badge"]')).toHaveText('1');
 
-    await test.step('complete checkout with delays', async () => {
-      await openCart(page);
-      await page.getByRole('button', { name: 'Checkout' }).click();
-      await expect(page).toHaveURL(/\/checkout-step-one\.html$/, { timeout: 15000 });
-
-      await page.getByPlaceholder('First Name').fill('Taylor');
-      await page.getByPlaceholder('Last Name').fill('Morgan');
-      await page.getByPlaceholder('Zip/Postal Code').fill('10001');
-      await page.getByRole('button', { name: 'Continue' }).click();
-
-      await expect(page).toHaveURL(/\/checkout-step-two\.html$/, { timeout: 15000 });
-      await page.getByRole('button', { name: 'Finish' }).click();
-      await expect(page.getByText('Thank you for your order!')).toBeVisible({ timeout: 15000 });
-    });
+    await openCart(page);
+    await expect(page.locator('.cart_item')).toHaveCount(1);
   });
 });

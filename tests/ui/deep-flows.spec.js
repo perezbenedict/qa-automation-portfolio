@@ -86,7 +86,10 @@ test.describe('SauceDemo deep checkout flows', () => {
 
     await firstProduct.getByRole('button', { name: `View details for ${productName}` }).first().click();
     await expect(page).toHaveURL(/\/inventory-item\.html\?id=\d+$/);
-    await page.getByRole('button', { name: 'Add to cart' }).click();
+    // Wait for the settled detail layout (the page swaps renders while loading),
+    // which exposes exactly one Add to cart button.
+    await expect(page.locator('[data-test="back-to-products"]')).toBeVisible();
+    await page.locator('[data-test="add-to-cart"]').click();
     await expect(page.locator('[data-test="shopping-cart-badge"]')).toHaveText('1');
 
     await page.getByRole('button', { name: 'Back to products' }).click();

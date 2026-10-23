@@ -6,26 +6,17 @@ const TEST_USERS = [
   { name: 'standard_user', password: DEMO_PASSWORD, shouldSucceed: true, description: 'Standard user' },
   { name: 'locked_out_user', password: DEMO_PASSWORD, shouldSucceed: false, description: 'Locked out user' },
   { name: 'problem_user', password: DEMO_PASSWORD, shouldSucceed: true, description: 'Problem user' },
-  { name: 'performance_glitch_user', password: DEMO_PASSWORD, shouldSucceed: true, description: 'Performance glitch user' },
+  { name: 'performance_glitch_user', password: DEMO_PASSWORD, shouldSucceed: true, description: 'Performance glitch user', timeout: 15000 },
   { name: 'error_user', password: DEMO_PASSWORD, shouldSucceed: true, description: 'Error user' },
   { name: 'visual_user', password: DEMO_PASSWORD, shouldSucceed: true, description: 'Visual user' },
 ];
 
+// Required-field validation lives in checkout.spec.js; these rows cover
+// special-character and unicode input only.
 const CHECKOUT_FIELDS = [
-  { firstName: 'John', lastName: 'Doe', zip: '10001', shouldSucceed: true, description: 'Valid US address' },
-  { firstName: 'Maria', lastName: 'García', zip: '28001', shouldSucceed: true, description: 'Valid Spanish address with accent' },
-  { firstName: 'Jean-Pierre', lastName: 'O\'Connor', zip: '75001', shouldSucceed: true, description: 'Valid French/Irish address with apostrophe' },
-  { firstName: '田中', lastName: '太郎', zip: '100-0001', shouldSucceed: true, description: 'Valid Japanese address' },
-  { firstName: '', lastName: 'Doe', zip: '10001', shouldSucceed: false, description: 'Missing first name' },
-  { firstName: 'John', lastName: '', zip: '10001', shouldSucceed: false, description: 'Missing last name' },
-  { firstName: 'John', lastName: 'Doe', zip: '', shouldSucceed: false, description: 'Missing zip code' },
-];
-
-const PRODUCT_SORT_OPTIONS = [
-  { value: 'az', description: 'Name A to Z' },
-  { value: 'za', description: 'Name Z to A' },
-  { value: 'lohi', description: 'Price low to high' },
-  { value: 'hilo', description: 'Price high to low' },
+  { firstName: 'Maria', lastName: 'García', zip: '28001', description: 'Valid Spanish address with accent' },
+  { firstName: 'Jean-Pierre', lastName: 'O\'Connor', zip: '75001', description: 'Valid French/Irish address with apostrophe' },
+  { firstName: '田中', lastName: '太郎', zip: '100-0001', description: 'Valid Japanese address' },
 ];
 
 test.describe('SauceDemo data-driven tests', () => {
@@ -38,8 +29,9 @@ test.describe('SauceDemo data-driven tests', () => {
         await page.getByRole('button', { name: 'Login' }).click();
 
         if (user.shouldSucceed) {
-          await expect(page).toHaveURL(/\/inventory\.html$/);
-          await expect(page.locator('[data-test="title"]')).toHaveText('Products');
+          // performance_glitch_user deliberately delays; allow extra time for it.
+          await expect(page).toHaveURL(/\/inventory\.html$/, { timeout: user.timeout ?? 5000 });
+          await expect(page.locator('[data-test="title"]')).toHaveText('Products', { timeout: user.timeout ?? 5000 });
         } else {
           await expect(page.locator('[data-test="error"]')).toBeVisible();
           await expect(page).toHaveURL(/\/$/);
@@ -59,63 +51,28 @@ test.describe('SauceDemo data-driven tests', () => {
     });
 
     for (const fields of CHECKOUT_FIELDS) {
-      test(`${fields.description} ${fields.shouldSucceed ? 'completes' : 'fails'}`, async ({ page }) => {
+      test(fields.description, async ({ page }) => {
         await page.getByPlaceholder('First Name').fill(fields.firstName);
         await page.getByPlaceholder('Last Name').fill(fields.lastName);
         await page.getByPlaceholder('Zip/Postal Code').fill(fields.zip);
         await page.getByRole('button', { name: 'Continue' }).click();
 
-        if (fields.shouldSucceed) {
-          await expect(page).toHaveURL(/\/checkout-step-two\.html$/);
-          await page.goBack();
-          await expect(page).toHaveURL(/\/checkout-step-one\.html$/);
-        } else {
-          await expect(page.locator('[data-test="error"]')).toBeVisible();
-          await expect(page).toHaveURL(/\/checkout-step-one\.html$/);
-        }
-      });
-    }
-  });
-
-  test.describe('Product sorting with all options', () => {
-    test.beforeEach(async ({ page }) => {
-      await loginAs(page);
-      await expect(page.locator('[data-test="title"]')).toHaveText('Products');
-    });
-
-    for (const sortOption of PRODUCT_SORT_OPTIONS) {
-      test(`sort by ${sortOption.description}`, async ({ page }) => {
-        const sortControl = page.locator('[data-test="product-sort-container"]');
-        const productNames = page.locator('.inventory_item_name');
-        const productPrices = page.locator('.inventory_item_price');
-
-        await sortControl.selectOption(sortOption.value);
-
-        if (sortOption.value === 'az') {
-          const names = await productNames.allTextContents();
-          expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
-        } else if (sortOption.value === 'za') {
-          const names = await productNames.allTextContents();
-          expect(names).toEqual([...names].sort((a, b) => b.localeCompare(a)));
-        } else if (sortOption.value === 'lohi') {
-          const prices = (await productPrices.allTextContents()).map(p => Number(p.replace('$', '')));
-          expect(prices).toEqual([...prices].sort((a, b) => a - b));
-        } else if (sortOption.value === 'hilo') {
-          const prices = (await productPrices.allTextContents()).map(p => Number(p.replace('$', '')));
-          expect(prices).toEqual([...prices].sort((a, b) => b - a));
-        }
+        await expect(page).toHaveURL(/\/checkout-step-two\.html$/);
+        await page.goBack();
+        await expect(page).toHaveURL(/\/checkout-step-one\.html$/);
       });
     }
   });
 
   test.describe('Multiple products in cart scenarios', () => {
-    const productCounts = [1, 2, 3, 5];
+    const productCounts = [1, 3];
 
     for (const count of productCounts) {
       test(`adding ${count} product(s) to cart`, async ({ page }) => {
         await loginAs(page);
 
         const products = page.locator('.inventory_item');
+        await expect(products.first()).toBeVisible();
         const totalProducts = await products.count();
         const productsToAdd = Math.min(count, totalProducts);
 

@@ -8,7 +8,6 @@ test.describe('SauceDemo storefront quality', () => {
 
     const username = page.getByPlaceholder('Username');
     const password = page.getByPlaceholder('Password');
-    const loginButton = page.getByRole('button', { name: 'Login' });
 
     await username.focus();
     await expect(username).toBeFocused();
@@ -16,8 +15,9 @@ test.describe('SauceDemo storefront quality', () => {
     await page.keyboard.press('Tab');
     await expect(password).toBeFocused();
     await page.keyboard.type(DEMO_PASSWORD);
-    await page.keyboard.press('Tab');
-    await expect(loginButton).toBeFocused();
+    // Pressing Enter in the password field submits the form in every engine.
+    // WebKit omits the submit button from its tab order, so tabbing to it
+    // first would not be a portable keyboard flow.
     await page.keyboard.press('Enter');
 
     await expect(page).toHaveURL(/\/inventory\.html$/);

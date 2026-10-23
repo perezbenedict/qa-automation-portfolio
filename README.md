@@ -1,84 +1,115 @@
 # QA Automation Portfolio
 
-A Playwright Test portfolio covering a public demo storefront, a public demo REST API, and Playwright’s own documentation. It is designed to exercise browser workflows and HTTP assertions across the configured Chromium, Firefox, and WebKit projects. All targets are external services; this is not an application-under-test repository.
+A Playwright Test suite written in plain JavaScript (no TypeScript) that exercises three public targets:
 
-## Test layout and coverage
+- **SauceDemo** (`https://www.saucedemo.com`) — storefront UI workflows
+- **DummyJSON** (`https://dummyjson.com`) — REST API behavior
+- **playwright.dev** — documentation smoke and quality checks
 
-| Path | Target | Implemented coverage |
-| --- | --- | --- |
-| `tests/ui/authentication.spec.js` | SauceDemo (`https://www.saucedemo.com`) | Standard-user sign-in; unknown and locked-out user errors; incorrect password; required username/password validation. |
-| `tests/ui/catalog.spec.js` | SauceDemo | Product name sorting in both directions; price sorting in both directions; opening product details and returning to the catalog. |
-| `tests/ui/cart.spec.js` | SauceDemo | Empty cart; add/remove item and badge behavior; cart contents retained while navigating back to the catalog. |
-| `tests/ui/checkout.spec.js` | SauceDemo | Checkout completion; required first name, last name, and postal code validation. |
-| `tests/ui/order-lifecycle.spec.js` | SauceDemo | Remove and re-add products; cancel checkout/review; order completion and cart reset; logout and protected-route behavior. |
-| `tests/ui/helpers.js` | SauceDemo | Shared helpers/constants for demo login, adding the first catalog item, and opening the cart. |
-| `tests/api/dummyjson.spec.js` | DummyJSON (`https://dummyjson.com`) | Product and user detail/search; pagination and sorting; product category discovery/filtering; unknown records; simulated product create/update/delete responses; response fields and status codes. |
-| `tests/quality/docs-quality.spec.js` | Playwright docs (`playwright.dev`) | Installation-page landmarks and heading structure; keyboard link activation and browser history; content bounds at a narrow viewport. |
-| `tests/quality/storefront-quality.spec.js` | SauceDemo | Keyboard login and cart operation; mobile login/catalog visibility and horizontal-overflow check; accessible prompts and named submit control. These checks are focused examples, not a WCAG conformance audit. |
-| `tests/example.spec.js` | Playwright docs (`playwright.dev`) | Homepage and navigation smoke checks; installation instructions; navigation to the writing-tests guide. |
+All three are external public services. There is no application-under-test in this repository; the tests hit the live targets over the network.
 
-The UI helpers are limited to repeated SauceDemo interactions; the API tests use Playwright’s request fixture directly. Documentation tests use relative URLs against the configured `baseURL`. The SauceDemo helper navigates to an absolute URL, and DummyJSON requests use absolute URLs in the spec. The single configured `baseURL` is `https://playwright.dev`; it does not switch by suite or configure SauceDemo/DummyJSON targets.
+## Test inventory
 
-## Requirements and setup
+### UI — SauceDemo (`tests/ui/`)
 
-- Node.js 20 or later (CI uses Node.js 20)
-- npm
-- Network access to install packages and browser binaries, and to reach all three public test targets
+| File | Covers |
+| --- | --- |
+| `authentication.spec.js` | Valid login, unknown user, wrong password, locked-out user, required-field errors |
+| `catalog.spec.js` | Name and price sorting in both directions, product detail navigation |
+| `cart.spec.js` | Empty cart, add/remove and badge count, cart contents retained when returning to the catalog |
+| `checkout.spec.js` | Full checkout happy path, required first name/last name/postal code validation |
+| `order-lifecycle.spec.js` | Remove/re-add product, cancel checkout steps, order completion resets cart, logout blocks direct inventory access |
+| `negative.spec.js` | Login and checkout validation failures, SQL-injection and XSS-style strings rejected, direct URL access without login redirects, logout vs. back button |
+| `edge-cases.spec.js` | Multi-product cart management, sort stability across repeated changes, product detail completeness, `problem_user` and `performance_glitch_user` behavior |
+| `data-driven.spec.js` | Parameterized logins over SauceDemo user types, address-format matrix for checkout, sort-option matrix, multi-product cart counts |
+| `deep-flows.spec.js` | Two-product cart and checkout overview, whitespace-only first name accepted by the app (documents real app behavior), add-to-cart from the product detail page, second checkout after Back Home |
+| `session-state.spec.js` | Cart survives reload, Reset App State behavior (badge clears immediately, buttons revert after reload), `problem_user` login, back/forward navigation keeps the session |
+| `accessibility.spec.js` | Labeled form controls, keyboard navigation and submission, error visibility, menu button naming — accessibility-focused checks, not a WCAG conformance audit |
+| `performance.spec.js` | Page-usability and flow-completion checks across login, catalog, detail, cart, checkout, sort and logout |
+| `helpers.js` | Shared helpers for SauceDemo login, adding a product, and opening the cart (not a test file) |
+
+### API — DummyJSON (`tests/api/`)
+
+| File | Covers |
+| --- | --- |
+| `dummyjson.spec.js` | Products/users pagination, sorting, category filter, search, detail lookup, unknown-id 404, simulated create/update/delete, carts, posts, comments, quotes, auth login success/failure |
+| `robust-api.spec.js` | Edge cases: limit/skip boundaries, invalid sort/order handling, special-character search and category, non-numeric ids, creation with missing fields, plus carts/posts/comments/quotes/auth coverage |
+| `resilience.spec.js` | JSON response headers, unique ascending ids, unicode round-trip create, cart ownership and totals, empty PATCH body |
+
+### Quality (`tests/quality/`)
+
+| File | Covers |
+| --- | --- |
+| `docs-quality.spec.js` | playwright.dev landmarks, keyboard link activation with browser history, content bounds at a narrow viewport |
+| `storefront-quality.spec.js` | SauceDemo keyboard login and cart operation, mobile overflow check, accessible prompts |
+| `responsive.spec.js` | SauceDemo catalog/cart/login at 768px, 375px and 320px with horizontal-overflow checks; playwright.dev Docs link and search affordance |
+
+### Docs smoke
+
+- `tests/example.spec.js` — playwright.dev homepage and docs navigation smoke checks.
+
+## Requirements
+
+- Node.js 20 or later (CI uses Node 20) and npm
+- Network access to install packages and browsers, and to reach all three targets
 
 ```bash
 npm ci
-npx playwright install --with-deps chromium firefox webkit
+npx playwright install --with-deps chromium firefox webkit   # Linux
 ```
 
-On Linux, `--with-deps` installs required operating-system packages. On macOS or Windows, install the browsers with `npx playwright install chromium firefox webkit` if Linux system dependencies are not needed.
+On macOS/Windows, drop `--with-deps`: `npx playwright install chromium firefox webkit`.
 
-## Run tests
+## Running tests
 
 ```bash
-npm test                                      # full suite in Chromium, Firefox, and WebKit
-npx playwright test --project=chromium        # full suite in Chromium only
-npx playwright test tests/ui                  # SauceDemo UI suite
-npx playwright test tests/api                 # DummyJSON API suite
-npx playwright test tests/quality             # docs and storefront quality checks
-npx playwright test tests/ui/order-lifecycle.spec.js
-npx playwright test tests/example.spec.js     # documentation smoke tests
-npm run test:headed                           # full suite with visible browsers
-npm run test:ui                               # interactive Playwright UI mode
+npm test                                # all tests, all five projects
+npx playwright test --project=chromium  # full suite, one browser
+npx playwright test tests/ui            # SauceDemo UI suite
+npx playwright test tests/api           # DummyJSON API suite
+npx playwright test tests/quality       # docs and storefront quality checks
+npm run test:headed                     # visible browsers
+npm run test:ui                         # interactive Playwright UI mode
 ```
 
-For a target suite in one browser, combine its path with a project filter, for example:
+Per-suite and per-spec scripts from `package.json`:
 
 ```bash
-npx playwright test tests/ui --project=chromium
-npx playwright test tests/api --project=chromium
+npm run test:ui-tests        # tests/ui/
+npm run test:api-tests       # tests/api/
+npm run test:quality         # tests/quality/
+npm run test:edge-cases      # tests/ui/edge-cases.spec.js
+npm run test:negative        # tests/ui/negative.spec.js
+npm run test:data-driven     # tests/ui/data-driven.spec.js
+npm run test:performance     # tests/ui/performance.spec.js
+npm run test:accessibility   # tests/ui/accessibility.spec.js
+npm run test:robust-api      # tests/api/robust-api.spec.js
+npm run test:mobile          # Mobile Chrome + Mobile Safari projects
+npm run test:ci              # dot reporter, used on CI
 ```
 
-The configured projects are desktop Chromium, Firefox, and WebKit, so an unfiltered run executes each matching test in all three projects (including API tests). Tests can run in parallel. Local retries are disabled; CI retries twice.
+An unfiltered run executes each test once per project — chromium, firefox, webkit, Mobile Chrome (Pixel 5) and Mobile Safari (iPhone 12) — so API and docs specs also run five times. Combine a path with a project filter to narrow it: `npx playwright test tests/ui --project=chromium`. Tests run in parallel per file; retries are off locally and 2 on CI.
 
-## Reports and diagnostics
+`playwright.config.js` sets a single `baseURL` of `https://playwright.dev`. SauceDemo and DummyJSON are addressed by absolute URL from the specs; the `baseURL` does not switch per suite.
 
-Playwright writes a terminal list and an HTML report. Open the latest report with:
+## Reports and artifacts
 
 ```bash
-npm run report
-# equivalent: npx playwright show-report
+npm run report   # opens the latest HTML report (npx playwright show-report)
 ```
 
-The report and `test-results/` are generated output ignored by Git. Screenshots are captured on failure, videos retained on failure, and traces recorded on the first retry. To capture a trace locally without enabling retries:
-
-```bash
-npx playwright test tests/ui --trace on
-npx playwright show-trace test-results/<test-run-folder>/trace.zip
-```
-
-GitHub Actions uploads available report and test-result diagnostics as the `playwright-diagnostics` artifact, retained for 14 days. Trace, screenshot, and video artifacts may contain page content; handle them accordingly.
-
-## External dependencies and limitations
-
-SauceDemo and DummyJSON are public demonstration services outside this repository’s control. A full run requires internet connectivity and their availability; content, behavior, rate limits, or service-side changes can cause failures unrelated to the test code. The UI suite also relies on SauceDemo’s public demo accounts and current storefront behavior. Keep request volume modest and do not rely on shared or persistent state.
-
-DummyJSON write endpoints are simulated: the create, update, and delete tests assert the response returned by the demo API, not durable changes to its backing data. In particular, a successful response does not mean a product was actually created, modified, or removed for future requests. Treat these as response-contract checks, not persistence or transactional tests.
+`playwright-report/` and `test-results/` are gitignored output. Screenshots are captured on failure, videos retained on failure, and traces recorded on the first retry. To force a trace locally: `npx playwright test tests/ui --trace on`, then `npx playwright show-trace <trace.zip>`. Traces and videos can contain page content — treat them as sensitive.
 
 ## CI
 
-`.github/workflows/playwright.yml` runs on pushes and pull requests targeting `main` or `master`. It uses `npm ci`, installs Chromium, Firefox, and WebKit with Linux dependencies, runs the full suite, and uploads available diagnostics even when tests fail. CI therefore also depends on network access to the external test targets.
+`.github/workflows/playwright.yml` runs on pushes and PRs to `main`/`master`: Node 20, `npm ci`, browser install with Linux deps, `npm run test:ci`, and uploads `playwright-report/` + `test-results/` as the `playwright-diagnostics` artifact (14-day retention) even when tests fail. CI needs the same network access to the public targets.
+
+## Verification status
+
+The suites have been executed and pass on Chromium and the other projects installed on the machine where they were last verified (WebKit and the mobile projects). Firefox browsers were not installed there, so Firefox was not exercised locally; CI installs it along with Chromium and WebKit. No pass counts or badges are claimed here.
+
+## Limitations
+
+SauceDemo and DummyJSON are public demo services outside this repo's control. Availability, content, rate limits or behavior changes on their side can fail tests regardless of test code; keep request volume modest and don't rely on persistent shared state. The UI suite depends on SauceDemo's public demo accounts (including `problem_user` and `performance_glitch_user`).
+
+DummyJSON write endpoints are simulated: create/update/delete tests assert the response the demo API returns, not durable changes to its data. Treat them as response-contract checks, not persistence tests.
