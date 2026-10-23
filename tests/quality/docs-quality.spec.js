@@ -67,4 +67,16 @@ test.describe('Playwright documentation quality', () => {
     expect(headingBounds.x).toBeGreaterThanOrEqual(0);
     expect(headingBounds.x + headingBounds.width).toBeLessThanOrEqual(375);
   });
+
+  test('docs homepage exposes a visible search affordance', async ({ page }) => {
+    await page.goto('/');
+
+    const searchAffordance = page
+      .getByRole('search')
+      .or(page.locator('[role="search"]'))
+      .or(page.getByRole('button', { name: /Search( docs)?/i }))
+      .or(page.getByRole('link', { name: /Search( docs)?/i }))
+      .first();
+    await expect(searchAffordance).toBeVisible();
+  });
 });

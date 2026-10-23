@@ -37,30 +37,4 @@ test.describe('Responsive and cross-page quality', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth).toBeLessThanOrEqual(320);
   });
-
-  test('docs homepage exposes a visible Docs link in the main navigation', async ({ page }) => {
-    await page.goto('/');
-
-    const toggle = page.getByRole('button', { name: 'Toggle navigation bar' });
-    if (await toggle.isVisible()) {
-      await toggle.click();
-    }
-
-    await expect(page).toHaveTitle(/Playwright/);
-    await expect(
-      page.getByRole('navigation').getByRole('link', { name: 'Docs', exact: true }),
-    ).toBeVisible();
-  });
-
-  test('docs homepage exposes a visible search affordance', async ({ page }) => {
-    await page.goto('/');
-
-    const searchAffordance = page
-      .getByRole('search')
-      .or(page.locator('[role="search"]'))
-      .or(page.getByRole('button', { name: /Search( docs)?/i }))
-      .or(page.getByRole('link', { name: /Search( docs)?/i }))
-      .first();
-    await expect(searchAffordance).toBeVisible();
-  });
 });

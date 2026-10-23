@@ -18,7 +18,7 @@ Rationale and trade-offs that would bloat the README. Each note points at the co
 ## Trade-offs
 
 - **No screenshot baselines.** Visual comparison tests were tried and removed: baselines recorded against a public demo site churned with the site's own asset and layout updates, producing failures that described the site's redeployments rather than the app's behavior. The same flows remain covered by functional assertions.
-- **No wall-clock performance thresholds.** Latency of public services varies run to run; a fixed number would be flaky and would measure the network, not the app. `tests/ui/performance.spec.js` asserts usability and flow completion and is named accordingly. Load testing is out of scope for this repo.
+- **No wall-clock performance thresholds.** Latency of public services varies run to run; a fixed number would be flaky and would measure the network, not the app. `tests/ui/usability.spec.js` asserts usability and flow completion and is named accordingly. Load testing is out of scope for this repo.
 - **Accessibility checks are targeted, not a conformance audit.** They verify labeled controls, keyboard paths, focus behavior and error visibility. Automated checks cannot establish WCAG compliance, and none is claimed.
 - **DummyJSON writes are simulated.** Verified against the live API: a fresh `GET /products/1` after `DELETE` still returns the original product. Create/update/delete tests assert the response contract (echoed fields, `isDeleted`, `deletedOn`) and never claim persistence.
 

@@ -36,33 +36,70 @@ export default defineConfig({
     baseURL: 'https://playwright.dev',
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
-    video: 'retain-on-failure',
+    video: 'off',
   },
 
-  /* Configure projects for major browsers */
+  /*
+   * Each test file belongs to exactly one target, so nothing runs twice:
+   * tests/api is the DummyJSON suite, tests/example.spec.js and
+   * tests/quality/docs-quality.spec.js are the playwright.dev docs smoke,
+   * and everything else is SauceDemo UI work.
+   */
   projects: [
+    /* DummyJSON suite, run once with no browser (request fixture only). */
     {
-      name: 'chromium',
+      name: 'api',
+      testMatch: '**/api/**/*.spec.js',
+    },
+
+    /* playwright.dev documentation smoke, run once on desktop Chromium. */
+    {
+      name: 'docs',
+      testMatch: ['**/example.spec.js', '**/quality/docs-quality.spec.js'],
       use: { ...devices['Desktop Chrome'] },
     },
 
+    /* Complete SauceDemo UI suite: tests/ui plus the quality checks. */
+    {
+      name: 'chromium',
+      testIgnore: ['**/api/**', '**/example.spec.js', '**/quality/docs-quality.spec.js'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+
+    /* Core workflows in the other desktop engines. */
     {
       name: 'firefox',
+      testMatch: ['**/ui/**/*.spec.js', '**/quality/storefront-quality.spec.js'],
       use: { ...devices['Desktop Firefox'] },
     },
 
     {
       name: 'webkit',
+      testMatch: ['**/ui/**/*.spec.js', '**/quality/storefront-quality.spec.js'],
       use: { ...devices['Desktop Safari'] },
     },
 
-    /* Test against mobile viewports. */
+    /* Mobile-critical subset: responsive, storefront, and the main journeys. */
     {
       name: 'Mobile Chrome',
+      testMatch: [
+        '**/quality/responsive.spec.js',
+        '**/quality/storefront-quality.spec.js',
+        '**/ui/authentication.spec.js',
+        '**/ui/cart.spec.js',
+        '**/ui/checkout.spec.js',
+      ],
       use: { ...devices['Pixel 5'] },
     },
     {
       name: 'Mobile Safari',
+      testMatch: [
+        '**/quality/responsive.spec.js',
+        '**/quality/storefront-quality.spec.js',
+        '**/ui/authentication.spec.js',
+        '**/ui/cart.spec.js',
+        '**/ui/checkout.spec.js',
+      ],
       use: { ...devices['iPhone 12'] },
     },
 
