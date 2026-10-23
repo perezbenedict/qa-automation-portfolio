@@ -19,7 +19,22 @@ jobs:
     - name: Install dependencies
       run: npm ci
     - name: Install Playwright Browsers
-      run: npx playwright install --with-deps chromium firefox webkit
+      # The apt mirror on GitHub's runners occasionally trickles packages and
+      # stalls: run #8 spent the whole 30-minute job budget here and never
+      # reached the tests. Bound each attempt so a stall is killed and retried
+      # instead of consuming the job, and fail loudly if it never succeeds.
+      run: |
+        for attempt in 1 2 3; do
+          echo "=== Browser install attempt $attempt ==="
+          if timeout 360 npx playwright install --with-deps chromium firefox webkit; then
+            echo "Browser install succeeded on attempt $attempt"
+            exit 0
+          fi
+          echo "Attempt $attempt failed or timed out; retrying in 15s"
+          sleep 15
+        done
+        echo "Browser install failed after 3 attempts"
+        exit 1
     - name: Run Playwright tests
       run: npm test
     - name: Upload Playwright report

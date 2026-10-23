@@ -1,7 +1,7 @@
 {
   "name": "qa-automation-portfolio",
   "version": "1.0.0",
-  "description": "JavaScript and Playwright testing portfolio: UI, API, accessibility and responsive checks against public demo applications",
+  "description": "JavaScript QA automation portfolio using Playwright for UI, API, regression, and responsive testing, with GitHub Actions CI.",
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
